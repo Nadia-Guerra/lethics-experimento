@@ -1,0 +1,21 @@
+# Secretos (EXP-RNF-10)
+.env
+
+# Datos generados (muy pesados)
+data/*.json
+data/*.jsonl
+
+# Resultados y logs (se regeneran)
+results/logs/
+results/evidence/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db

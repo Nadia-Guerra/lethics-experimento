@@ -1,0 +1,24 @@
+# ==============================================================
+# Experimento Lethics – MongoDB vs PostgreSQL JSONB
+# Dependencias de Python
+# ==============================================================
+
+# --- Generador de datos y carga ---
+pymongo>=4.6,<5.0            # Driver MongoDB
+psycopg2-binary>=2.9,<3.0    # Driver PostgreSQL (binario, sin compilar)
+faker>=28.0,<30.0             # Datos sintéticos (nombres, países, UUIDs)
+
+# --- Benchmark runner ---
+numpy>=2.0,<3.0               # Cálculo de percentiles (P50, P95, P99)
+
+# --- Telemetría / métricas ---
+prometheus-api-client>=0.5,<1.0   # Consultar Prometheus para KPIs
+requests>=2.31,<3.0               # HTTP genérico (cAdvisor, health checks)
+
+# --- Reporte y gráficas ---
+pandas>=2.2,<3.0              # Lectura/manipulación del CSV
+matplotlib>=3.8,<4.0          # Gráficas del reporte
+seaborn>=0.13,<1.0            # Gráficas estilizadas
+
+# --- Validación ---
+jsonschema>=4.21,<5.0         # Validar estructura de documentos generados

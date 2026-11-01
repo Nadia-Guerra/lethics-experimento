@@ -1,0 +1,135 @@
+# =============================================================================
+# docker-compose.yml – Experimento Lethics
+# MongoDB vs PostgreSQL JSONB bajo contención de CPU y memoria (cgroups v2)
+#
+# Perfiles parametrizados con variables de entorno (EXP-RF-02):
+#   BENCHMARK_CPUS     (default: 4.0)
+#   BENCHMARK_MEMORY   (default: 4096m)
+#   BENCHMARK_MEM_SWAP (default: 4096m)  → igual a MEMORY = sin swap (D-08)
+#
+# Versiones fijas, no latest (EXP-RF-03, D-13).
+# Un motor a la vez durante las mediciones (EXP-RF-04, D-15):
+#   docker compose stop postgres   # o mongo
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # MongoDB 7.0
+  # ---------------------------------------------------------------------------
+  mongo:
+    image: mongo:7.0.14
+    container_name: lethics-mongo
+    command: ["mongod", "--noauth", "--bind_ip_all"]
+    restart: unless-stopped
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo_data:/data/db
+    deploy:
+      resources:
+        limits:
+          cpus: "${BENCHMARK_CPUS:-4.0}"
+          memory: "${BENCHMARK_MEMORY:-4096m}"
+        reservations:
+          cpus: "0.5"
+          memory: 256m
+    mem_swappiness: 0
+    memswap_limit: "${BENCHMARK_MEM_SWAP:-4096m}"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 16.4
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16.4
+    container_name: lethics-postgres
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          cpus: "${BENCHMARK_CPUS:-4.0}"
+          memory: "${BENCHMARK_MEMORY:-4096m}"
+        reservations:
+          cpus: "0.5"
+          memory: 256m
+    mem_swappiness: 0
+    memswap_limit: "${BENCHMARK_MEM_SWAP:-4096m}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lethics_admin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Telemetría (EXP-RF-18)
+  # Sin límites de perfil: corren fuera del presupuesto del motor (EXP-RNF-05)
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: lethics-prometheus
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+    depends_on:
+      cadvisor:
+        condition: service_started
+      node-exporter:
+        condition: service_started
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: lethics-cadvisor
+    restart: unless-stopped
+    ports:
+      - "${CADVISOR_PORT:-8080}:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: lethics-node-exporter
+    restart: unless-stopped
+    ports:
+      - "${NODE_EXPORTER_PORT:-9100}:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+
+volumes:
+  mongo_data:
+  postgres_data:
+  prometheus_data:
+
